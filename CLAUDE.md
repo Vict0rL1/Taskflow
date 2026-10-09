@@ -63,14 +63,38 @@ es corto.
 
 ## Qué probar
 
-Escribe tests de estas dos cosas y de nada más por ahora:
+Estos dos casos no se pueden caer nunca:
 
 1. `lib/parse.ts` — que `"Problem set 4 #SFU vie 3pm 90m"` salga con área,
-   fecha del próximo viernes, hora 15:00 y 90 minutos.
+   fecha del próximo viernes, hora 15:00 y 90 minutos (`tests/parse.test.ts`).
 2. El mapeo de Canvas — que correr el sync dos veces sobre la misma respuesta
-   deje exactamente las mismas filas.
+   deje exactamente las mismas filas (`tests/canvas.test.ts` y
+   `tests/canvas-sync.test.ts`).
 
-La UI se prueba abriéndola.
+**Lo que escribe en la base lleva test.** Una acción, un sync, un importador o
+el reloj se prueban con `fakeProject()` de `tests/helpers/supa.ts`: supabase-js
+de verdad sobre PGlite con `supabase/schema.sql`, la RLS encendida y el mismo
+tope de 1000 filas que Supabase. El test fija que el sync no pisa una edición
+manual, que repetir no duplica, que un fallo a medias no borra nada y que una
+lectura que tiene que verlo todo no se queda corta pasadas las mil filas.
+
+- Tabla nueva → una fila de A y su nombre en `TABLAS`, en `tests/rls.test.ts`.
+- Cargador nuevo en `lib/data.ts` → `tests/data-scope.test.ts`, que comprueba
+  que filtra por `user_id` aunque corra con la service role.
+- Secreto nuevo → `SECRET_VARS` en `lib/log.ts` y `SECRETS` en
+  `tools/check-client-secrets.mjs`.
+- Lo puro (fechas, horarios, carga) va sin base y con una fecha fija, nunca la
+  de hoy.
+
+**Nada real.** Ningún test habla con Canvas, Google, Anthropic, push ni
+Telegram, ni necesita secretos: `vi.stubGlobal("fetch")`, `vi.mock("web-push")`
+y un cliente de Claude falso, con valores inventados en el propio test.
+
+**La UI se prueba abriéndola** (`npm run demo`). No se escriben tests de render.
+
+**Antes de commitear**, lo mismo que corre CI: `npm test`, `npm run typecheck`,
+`npm run lint`, `npm run build` y `npm run check:secrets`. No se avanza con un
+test roto.
 
 ## Commits
 
