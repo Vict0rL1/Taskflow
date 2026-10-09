@@ -73,10 +73,11 @@ jobs:
             url="${url}${sep}canvas=1"
           fi
 
-          # El cuerpo NO se imprime: este repositorio es público y sus
-          # registros también, y la respuesta lleva el id del usuario y los
-          # mensajes de error de Canvas. El detalle está en los logs de
-          # Vercel, que sí son privados.
+          # El cuerpo NO se imprime: los registros de Actions los ve
+          # cualquiera con acceso al repositorio (todo el mundo, si es
+          # público), y la respuesta lleva el id del usuario y los mensajes
+          # de error de Canvas. El detalle está en los logs de Vercel, que
+          # sí son privados.
           code=$(curl -sS -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             --max-time 60 --retry 2 --retry-delay 15 --retry-connrefused \

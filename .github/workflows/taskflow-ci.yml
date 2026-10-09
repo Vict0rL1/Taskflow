@@ -1,4 +1,4 @@
-# Las comprobaciones de TaskFlow en cada PR que toque taskflow/: tests,
+# Las comprobaciones de TaskFlow en cada PR y en cada push a main: tests,
 # tipos, lint, build y que ningún secreto llegue al navegador.
 #
 # Son las mismas que se corren a mano antes de cada commit. Aquí existen para
@@ -11,11 +11,9 @@ name: taskflow ci
 
 on:
   pull_request:
-    paths: ["taskflow/**", ".github/workflows/taskflow-ci.yml"]
   push:
     # La rama por defecto del repo. Las demás ya pasan por el PR.
-    branches: [claude/budget-app-j968ek]
-    paths: ["taskflow/**", ".github/workflows/taskflow-ci.yml"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -30,16 +28,12 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: taskflow
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: taskflow/package-lock.json
       - run: npm ci
       - name: tests
         run: npm test

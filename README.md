@@ -408,8 +408,7 @@ te muestra este mismo instructivo en vez de un error.
 
 ### 9. Desplegar
 
-Importa el repo en Vercel. Como el proyecto vive en una subcarpeta, en la
-configuración del proyecto pon **Root Directory: `taskflow`**. Carga las dos
+Importa el repo en Vercel con el directorio raíz por defecto (`/`). Carga las dos
 variables `NEXT_PUBLIC_*` en *Environment Variables* y agrega la URL de
 `/auth/callback` de tu dominio a las Redirect URLs de Supabase.
 
