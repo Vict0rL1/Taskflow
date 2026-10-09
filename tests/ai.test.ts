@@ -141,6 +141,22 @@ describe("planDay", () => {
     expect(plan.costUsd).toBeCloseTo(costOf("claude-opus-5", { input_tokens: 2000, output_tokens: 1000 }));
     expect(plan.costUsd).toBeCloseTo(0.01 + 0.025);
   });
+
+  it("un respaldo que no se pidió (Opus 4.8) se cobra a su precio, no al de PLANNER_MODEL", async () => {
+    const { client } = fakeClient({
+      model: "claude-opus-4-8",
+      parsed_output: { bloques: [bloque("08:00", "09:00")], nota: "" },
+    });
+    const plan = await planDay(INPUT, client);
+    expect(plan.costUsd).toBeCloseTo(0.01 + 0.025, 6); // al precio de Opus 5.5 serían 0.008 + 0.02
+  });
+});
+
+describe("costOf", () => {
+  it("Haiku 5.5 cambia de tarifa, en la entrada y en la salida, pasados los 100K tokens de prompt", () => {
+    expect(costOf("claude-haiku-5-5", { input_tokens: 100_000, output_tokens: 10_000 })).toBeCloseTo(0.01 + 0.005, 6);
+    expect(costOf("claude-haiku-5-5", { input_tokens: 100_001, output_tokens: 10_000 })).toBeCloseTo(0.0500005 + 0.025, 6);
+  });
 });
 
 describe("breakDown", () => {

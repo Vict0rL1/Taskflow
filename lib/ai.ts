@@ -50,21 +50,34 @@ export const AI_FALLBACK = {
   fallbacks: "default" as const,
 };
 
+type Price = { in: number; out: number };
+
 /**
  * Precios de la API por millón de tokens, para poder decirle al usuario lo que
  * costó en vez de que se entere en la factura.
+ *
+ * Están los modelos que sirven de PLANNER_MODEL y también los de respaldo: con
+ * `fallbacks: "default"` un rechazo de Opus 5.5 lo puede contestar Opus 5 u
+ * Opus 4.8, y uno de Sonnet 5.5, Sonnet 5. Haiku 4.5 no está porque rechaza el
+ * `effort` que la app manda siempre.
+ *
+ * Haiku 5.5 cambia de tarifa, en la entrada y en la salida, cuando el prompt
+ * pasa de 100K tokens.
  */
-export const PRICE_PER_MTOK: Record<string, { in: number; out: number }> = {
+export const PRICE_PER_MTOK: Record<string, Price & { longPrompt?: Price & { over: number } }> = {
+  "claude-fable-5-1": { in: 10, out: 50 },
   "claude-opus-5-5": { in: 4, out: 20 },
   "claude-opus-5": { in: 5, out: 25 },
+  "claude-opus-4-8": { in: 5, out: 25 },
   "claude-sonnet-5-5": { in: 2, out: 10 },
   "claude-sonnet-5": { in: 2, out: 10 },
-  "claude-haiku-4-5": { in: 1, out: 5 },
+  "claude-haiku-5-5": { in: 0.1, out: 0.5, longPrompt: { over: 100_000, in: 0.5, out: 2.5 } },
 };
 
 /** Costo aproximado de una respuesta. El modelo que respondió puede no ser el pedido (fallback). */
 export function costOf(model: string, usage: { input_tokens: number; output_tokens: number }): number {
-  const p = PRICE_PER_MTOK[model] ?? PRICE_PER_MTOK[aiModel()] ?? PRICE_PER_MTOK["claude-opus-5-5"];
+  const price = PRICE_PER_MTOK[model] ?? PRICE_PER_MTOK[aiModel()] ?? PRICE_PER_MTOK["claude-opus-5-5"];
+  const p = price.longPrompt && usage.input_tokens > price.longPrompt.over ? price.longPrompt : price;
   return (usage.input_tokens / 1e6) * p.in + (usage.output_tokens / 1e6) * p.out;
 }
 
