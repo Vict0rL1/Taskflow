@@ -3,12 +3,17 @@
 App personal de productividad de Victor: agenda del día, tareas por área, notas
 rápidas y rutinas. Un solo usuario. Next.js + Supabase, desplegada en Vercel.
 
-**Estado: fases 1 y 2 construidas.** La app completa con Postgres y login, más
-el sync de Canvas. Falta conectarla a tu proyecto de Supabase y desplegarla —
-los pasos están abajo.
+**Estado: construidas las cuatro fases de `PLAN.md`** y una segunda ronda (ver
+`HANDOFF.md`): Postgres y login, el sync de Canvas y de Google Calendar (sólo
+lectura), el reloj con avisos por push y Telegram, y las propuestas con Claude.
+Falta conectarla a tu proyecto de Supabase, desplegarla y probarla contra los
+servicios reales: Canvas, Google Calendar, Anthropic y push sólo se han probado
+contra servidores falsos. Los pasos están abajo.
 
 - `PLAN.md` — el plan completo: stack, las 4 fases, Canvas y Google Calendar
 - `CLAUDE.md` — las reglas del proyecto
+- `HANDOFF.md` — de dónde viene este repositorio y lo que queda por hacer a mano
+  (los secretos del reloj y el proyecto de Vercel)
 - `reference/cumbre.html` — el artifact original (se llamaba Cumbre), de donde
   salieron la UI y los parsers. Conserva su nombre a propósito: es la foto de
   la versión publicada, y sus datos viven bajo la clave `cumbre.v1`.
@@ -37,10 +42,12 @@ El código del demo está en `tools/demo/` y la app no importa nada de ahí.
 
 ## Ponerla a andar de verdad
 
-Necesitas una cuenta de **Supabase**, gratis. Vercel sólo cuando quieras abrirla
-desde el teléfono, y Google Cloud Console recién en la fase 3.
+Necesitas una cuenta de **Supabase**, gratis. Vercel cuando quieras abrirla
+desde el teléfono o que trabaje sola (el reloj y Telegram necesitan la app
+desplegada), y Google Cloud Console sólo si quieres entrar con Google (2b) o
+conectar Calendar (2c).
 
-**El camino corto para verla funcionando hoy**: pasos 1, 2a, 3 y 5. Son unos ocho
+**El camino corto para verla funcionando hoy**: pasos 1, 2a, 3 y 8. Son unos ocho
 minutos y una sola consola.
 
 ### 1. Base de datos
@@ -77,7 +84,7 @@ Si prefieres dejar **Confirm email** encendido, también funciona: te llega un
 correo con un enlace. Supabase limita esos envíos a unos pocos por hora en el
 plan gratis, así que para probar es más cómodo apagarlo.
 
-#### 2b. Con Google — para la fase 3
+#### 2b. Con Google — opcional
 
 Son dos consolas y hay **dos URLs de redirección distintas**. Confundirlas es el
 error clásico, así que lee esto antes de pegar nada.
@@ -105,7 +112,8 @@ error clásico, así que lee esto antes de pegar nada.
 **En Supabase:**
 
 6. **Authentication → Providers → Google**: actívalo y pega esos dos valores.
-   Van aquí, no en `.env.local`.
+   Para el login van aquí; en `.env.local` sólo hacen falta si además conectas
+   Calendar (2c).
 7. **Authentication → URL Configuration**: en *Site URL* pon
    `http://localhost:3000` mientras desarrollas, y en *Redirect URLs* agrega
    **las de tu app** (estas sí):
@@ -120,7 +128,8 @@ sólo lectura: la del 2c.
 #### 2c. Google Calendar — opcional, sólo lectura
 
 Se conecta desde **Ajustes → Estado del sistema → Google Calendar → Conectar**.
-En Google Cloud Console (sirve el mismo proyecto del 2b):
+En Google Cloud Console (sirve el mismo proyecto del 2b; si entras con correo,
+haz antes los pasos 1 a 3 del 2b):
 
 1. **APIs y servicios → Biblioteca → Google Calendar API → Habilitar.**
 2. En la pantalla de consentimiento OAuth agrega el permiso
@@ -149,7 +158,8 @@ Qué hace y qué no:
   atrás a cuatro meses adelante, cada 3 h con el reloj o con "Sincronizar ahora".
 - **Nunca escribe en Google**: el permiso es de sólo lectura y el código sólo
   hace GET a la API de Calendar.
-- Los eventos aparecen en Hoy y Semana como "Google · nombre del calendario".
+- Los eventos aparecen en Hoy como "Google · nombre del calendario" y en Semana,
+  con el calendario en el tooltip.
   No se editan ni se borran desde TaskFlow; lo que cambies en Google llega en el
   siguiente sync. Sincronizar dos veces deja exactamente lo mismo.
 - El permiso se guarda cifrado, con una llave que sale de `GOOGLE_CLIENT_SECRET`.
@@ -163,7 +173,8 @@ cp .env.example .env.local
 ```
 
 Llena `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Las demás
-son de fases posteriores y pueden quedarse vacías.
+son de las integraciones opcionales (Canvas, Google Calendar, el reloj, los
+avisos, Telegram y Claude) y pueden quedarse vacías.
 
 `.env.local` está en `.gitignore` desde el primer commit y nunca se commitea.
 
@@ -184,9 +195,10 @@ capturas a mano o los importas por `.ics`.
 3. Lo mismo en las variables de entorno de Vercel.
 4. En la app, **Ajustes → Canvas → Sincronizar ahora**.
 
-El token vive sólo en el servidor: el sync es un route handler porque el token
-no puede tocar el navegador, y porque Canvas bloquea CORS de todos modos. Si se
-te filtra, revócalo en Canvas y genera otro — borrar el commit no basta.
+El token vive sólo en el servidor: el sync corre ahí (`lib/canvas-sync.ts`, que
+llaman el botón de Ajustes y el reloj) porque el token no puede tocar el
+navegador, y porque Canvas bloquea CORS de todos modos. Si se te filtra,
+revócalo en Canvas y genera otro — borrar el commit no basta.
 
 ### 5. Sync automático (fase 4)
 
@@ -220,7 +232,10 @@ respuesta es "nada":
   de Vercel solo, eso es una vez al día; con el reloj de GitHub del paso 6, unas
   ocho veces, que es lo que hace que un deadline publicado a mediodía aparezca
   esa misma tarde.
+- Google Calendar, si está conectado, con la misma regla de tres horas.
 - El aviso se manda si la hora **local** cae en su ventana y no se mandó ya hoy.
+- De paso, vacía lo que lleva más de 30 días en la papelera y borra la actividad
+  de más de 90 días.
 
 Para probarla a mano hay dos atajos, que igual piden el secreto:
 `?canvas=1` fuerza el sync aunque acabe de correr, y `?digest=morning` o
@@ -311,7 +326,9 @@ Dos cosas que conviene saber de antemano:
 #### Cuándo NO suena
 
 Si un día no hay nada atrasado, nada que venza y nada en la agenda, **no suena
-nada**. Una app que avisa por avisar se silencia y se deja de usar.
+nada**. Una app que avisa por avisar se silencia y se deja de usar. La única
+excepción es la mañana: si algo está fallando de verdad (Canvas, Google Calendar,
+push o Telegram), sale igual un aviso, «TaskFlow necesita atención».
 
 El de la noche es más estricto todavía: si mañana no hay nada, no se manda,
 aunque hoy hayas dejado cosas sin hacer. Eso ya sale en el aviso de la mañana, y
@@ -331,7 +348,10 @@ silenciados para que no llegue nada. Telegram llega igual.
 1. En Telegram, háblale a **@BotFather**, escribe `/newbot` y ponle nombre. Te da
    un token.
 2. Ponlo en las variables de entorno de Vercel como `TELEGRAM_BOT_TOKEN` y vuelve
-   a desplegar. Al repo no va nunca; si se filtra, `/revoke` en @BotFather.
+   a desplegar. Al repo no va nunca; si se filtra, `/revoke` en @BotFather. El
+   webhook del bot corre sin sesión, así que también necesita la
+   `SUPABASE_SERVICE_ROLE_KEY` del paso 5, y los avisos salen con el reloj de ese
+   mismo paso.
 3. En la app, **Ajustes → Telegram → Conectar Telegram → Abrir Telegram**, y en el
    chat del bot pulsa **Iniciar**. Vuelve y pulsa «Ya lo conecté».
 
@@ -364,9 +384,10 @@ de verdad tienes libres hoy.
 
 **Esto cuesta dinero.** Es lo único de TaskFlow que no es gratis: la API de
 Anthropic se cobra por uso. Cada plan ronda el centavo de dólar, y la app te
-enseña el costo exacto de cada llamada debajo de la propuesta, para que no te
-enteres en la factura. Si quieres gastar menos, `PLANNER_MODEL=claude-sonnet-5-5`
-o `claude-haiku-4-5`.
+enseña lo que costó cada llamada (aproximado, a precio de lista) debajo de la
+propuesta, para que no te enteres en la factura. Si quieres gastar menos,
+`PLANNER_MODEL=claude-sonnet-5-5` o `claude-haiku-5-5`. Con Haiku, si rechaza una
+petición no hay otro modelo que la conteste.
 
 **Propone, no dispone.** La propuesta se ve en pantalla con sus horas; se
 agenda sólo si le das a *Agendar*, y entonces se **suma** a lo que ya tenías.
@@ -375,17 +396,17 @@ Nunca borra un bloque que pusiste a mano. La versión del artifact sí lo hacía
 se deje de usar.
 
 **Los huecos los calcula el servidor, no el modelo.** `lib/planner.ts` resta tus
-clases, eventos y bloques del horario visible del perfil y entrega sólo los
-ratos libres. Al modelo no se le pide que respete tus compromisos: se le da un
-tablero donde pisarlos es imposible. Lo que devuelve se vuelve a validar contra
-esos huecos antes de enseñártelo.
+clases, eventos y bloques del horario visible del perfil (con los huecos de
+`lib/schedule.ts`) y entrega sólo los ratos libres. Al modelo no se le pide que
+respete tus compromisos: se le da un tablero donde pisarlos es imposible. Lo
+que devuelve se vuelve a validar contra esos huecos antes de enseñártelo.
 
 #### Partir una tarea en pasos
 
-El botón `⋮⋮` de una fila de Tareas reparte una entrega grande en 3-6 pasos con
-fecha propia. Aparece sólo en tareas pendientes que vencen dentro de **3 días o
-más**: con menos margen, los pasos se amontonan y el resultado es la misma pared
-con más filas.
+En una fila de Tareas, el botón `⋯` abre los detalles, y ahí **Partir en pasos
+con Claude** reparte una entrega grande en 3-6 pasos con fecha propia. Aparece
+sólo en tareas pendientes que vencen dentro de **3 días o más**: con menos
+margen, los pasos se amontonan y el resultado es la misma pared con más filas.
 
 Reparte **hacia atrás**: el último paso cae al menos un día antes del
 vencimiento, y carga más trabajo al principio que al final. Terminar el día de
@@ -408,9 +429,10 @@ te muestra este mismo instructivo en vez de un error.
 
 ### 9. Desplegar
 
-Importa el repo en Vercel con el directorio raíz por defecto (`/`). Carga las dos
-variables `NEXT_PUBLIC_*` en *Environment Variables* y agrega la URL de
-`/auth/callback` de tu dominio a las Redirect URLs de Supabase.
+Importa el repo en Vercel con el directorio raíz por defecto (`/`). Carga
+`NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` en *Environment
+Variables* y agrega la URL de `/auth/callback` de tu dominio a las Redirect URLs
+de Supabase.
 
 **Fase 1 lista cuando:** creas una tarea en la laptop y la ves en el teléfono.
 
@@ -423,9 +445,11 @@ variables `NEXT_PUBLIC_*` en *Environment Variables* y agrega la URL de
 | `npm run demo` | la app con datos de ejemplo, sin cuentas |
 | `npm run dev` | servidor de desarrollo (necesita `.env.local`) |
 | `npm run build` | build de producción (incluye el chequeo de tipos) |
-| `npm run test` | los tests del parser y del mapeo de Canvas |
+| `npm run test` | todos los tests (Vitest): parser, Canvas, reloj y avisos, RLS y más; no necesitan cuentas ni secretos |
 | `npm run typecheck` | sólo TypeScript |
 | `npm run lint` | ESLint |
+| `npm run check:secrets` | compila con valores centinela y comprueba que ningún secreto llegue al navegador (lo corre CI) |
+| `npm run ics` | escribe `mi-semestre.ics` con las clases y entregas del semestre, para subirlo en Ajustes → Importar calendario |
 
 ---
 
@@ -433,18 +457,25 @@ variables `NEXT_PUBLIC_*` en *Environment Variables* y agrega la URL de
 
 ```
 app/
-  (app)/             las seis vistas, con el riel y la captura rápida
+  (app)/             las seis vistas, con el riel, la captura rápida y la paleta ⌘K
     hoy/ tareas/ semana/ notas/ rutinas/ ajustes/
+    ajustes/estado/ ajustes/actividad/ ajustes/papelera/
   api/sync/canvas/   route handler del sync de Canvas (POST)
   api/export/        baja todos tus datos en JSON (GET)
+  api/import/        importa un respaldo: primero vista previa, después sólo agrega (POST)
   api/sync/          el reloj: sync de Canvas y Google Calendar, y avisos, con CRON_SECRET (GET)
   api/gcal/          conectar Google Calendar (sólo lectura) y la vuelta del permiso
   api/plan/          propone un plan para hoy; no escribe nada (POST)
   api/breakdown/     propone los pasos de una tarea; no escribe nada (POST)
+  api/prep/          propone un plan de preparación; no escribe nada (POST)
+  api/replan/        busca un hueco para trabajar en una tarea, sin Claude; no escribe nada (POST)
+  api/search/        la búsqueda de la paleta ⌘K (GET)
+  api/push/          el service worker avisa que cambió la suscripción de los avisos (POST)
+  api/telegram/      webhook del bot de Telegram (POST)
   auth/callback/     canje del código de OAuth por la sesión
   auth/signout/      cerrar sesión
-  login/             entrar con Google, o el instructivo si falta configurar
-  actions.ts         Server Actions — todo lo que escribe en la base
+  login/             entrar con correo o con Google, o el instructivo si falta configurar
+  actions.ts         Server Actions — lo que escribe la interfaz, salvo importar un respaldo
   globals.css        tokens de color portados del reference
 components/          piezas de UI; las de cliente están marcadas "use client"
 lib/
@@ -455,32 +486,45 @@ lib/
   canvas-sync.ts     el sync en sí: trae de Canvas y escribe en la base
   gcal.ts            Google Calendar: permiso cifrado, lectura y mapeo (sólo GET)
   gcal-sync.ts       el sync de Google Calendar: idempotente, sin borrar a ciegas
+  clock.ts           lo que hace el reloj en cada tic (sólo servidor)
   push.ts            arma los dos avisos del día y los manda (sólo servidor)
   telegram.ts        el mismo aviso por Telegram, y la conexión del chat
-  planner.ts         huecos libres del día + el plan con Claude (sólo servidor)
+  schedule.ts        huecos libres y choques, determinista: dónde cabe cada cosa
+  ai.ts              lo común a las llamadas a Claude: cliente, límites, precio y errores
+  planner.ts         el plan del día con Claude (sólo servidor)
   breakdown.ts       parte una tarea grande en pasos con fecha (sólo servidor)
+  prep-ai.ts         Claude nombra las sesiones de un plan de preparación (sólo servidor)
   data.ts            lectura desde Supabase (sólo servidor)
+  env.server.ts      variables que nunca llegan al navegador; las públicas, en env.ts
+  …                  el resto: papelera, respaldo, actividad, estado del sistema, búsqueda
   supabase/          clientes de navegador, de servidor y de service role
-public/sw.js         service worker: recibe el aviso y abre /hoy al tocarlo
+public/sw.js         service worker: los avisos (abren /hoy o /semana), la suscripción
+                     al día y, sin red, offline.html
 proxy.ts             refresca la sesión y protege las rutas
-tools/demo/          Supabase de mentira para `npm run demo` (sólo desarrollo)
+tools/demo/          Supabase de mentira para `npm run demo` y los tests (sólo desarrollo)
+tools/*.mjs          el semestre de ejemplo, `npm run ics` y `npm run check:secrets`
 supabase/schema.sql  esquema completo, idempotente
-tests/               tests del parser
+tests/               Vitest: parser, Canvas, RLS, esquema, reloj y más; lo de la base,
+                     sobre Postgres en memoria (PGlite)
+.github/workflows/   CI en cada PR y push a main, y el reloj que llama a /api/sync cada hora
 ```
 
-Las vistas son Server Components que leen de Supabase; escribir pasa siempre por
-un Server Action. No hay librería de estado ni de componentes, y el CSS es el del
-reference con sus custom properties.
+Las vistas son Server Components que leen de Supabase; escribir pasa por un
+Server Action, salvo importar un respaldo, que va por `POST /api/import` porque
+un Server Action no acepta más de 1 MB. No hay librería de estado ni de
+componentes, y el CSS es el del reference con sus custom properties.
 
 ---
 
 ## Decisiones que vale la pena conocer
 
-**Una API nunca se redirige al login.** El proxy manda al login las páginas sin
-sesión, pero deja pasar `/api/*`, donde cada handler comprueba por su cuenta y
-responde 401 en JSON. Antes no: `/api/sync` recibía un 307 hacia `/login`, y
-como el cron de Vercel no manda cookies, el sync diario no habría corrido nunca
-— sin un solo error a la vista. Salió al probar el endpoint, no al leerlo.
+**El proxy nunca manda una API al login.** Manda al login las páginas sin
+sesión, pero deja pasar `/api/*`, donde cada handler comprueba por su cuenta: las
+que llama la app o el reloj responden 401 en JSON, y las dos de Google Calendar,
+que el navegador abre directo, mandan ellas mismas al login. Antes no:
+`/api/sync` recibía un 307 hacia `/login`, y como el cron de Vercel no manda
+cookies, el sync diario no habría corrido nunca — sin un solo error a la vista.
+Salió al probar el endpoint, no al leerlo.
 
 **La semana vive en la URL.** `/semana?w=2` es dentro de dos semanas, igual que
 el filtro de área en Tareas. Se recarga, se comparte y se puede marcar. El
@@ -488,30 +532,34 @@ desplazamiento se limita a un año en cada sentido y los valores raros caen a la
 semana actual.
 
 **Hay respaldo, no hay «borrar todo».** `GET /api/export` baja todas tus filas
-en JSON. Lo que no porté del artifact es el botón de borrar todo: ahí hacía
-falta porque los datos vivían en `localStorage` y no había otra forma de
-limpiarlos; aquí viven en tu Postgres, donde puedes borrar lo que quieras desde
-el panel de Supabase, y un botón así en la interfaz es sólo un riesgo sin
-ventaja.
+en JSON, y «Importar respaldo», en Ajustes, lo vuelve a subir: primero muestra
+qué es nuevo y después sólo agrega eso, sin cambiar ni borrar lo que ya tienes.
+Lo que no porté del artifact es el botón de borrar todo: ahí hacía falta porque
+los datos vivían en `localStorage` y no había otra forma de limpiarlos; aquí
+viven en tu Postgres, donde puedes borrar lo que quieras desde el panel de
+Supabase, y un botón así en la interfaz es sólo un riesgo sin ventaja.
 
 **Editar una tarea es volver a escribirla.** Tocas el título y se vuelve un
 campo; lo que escribes pasa por el mismo parser de la captura rápida, así que
 «Llamar al dentista mañana !alta» arregla el texto, mueve la fecha y sube la
 prioridad de una sola pasada. Lo que el parser no encuentra se deja como está,
-así que corregir una palabra no te borra el área ni el estimado. No hay un
-formulario de edición aparte porque no hace falta.
+así que corregir una palabra no te borra el área ni el estimado. El tipo, el
+curso, el % de la nota, la dificultad y el tiempo total se editan en el panel
+«⋯», debajo de la fila, y eso también cuenta como edición a mano.
 
 **En el teléfono, primero lo accionable.** La agenda mide unos 660px que casi
 siempre están vacíos, y en una pantalla de 390px enterraba lo que hay que
-hacer. Por debajo de 760px el orden se invierte: enfoque, tareas y rutinas
-arriba; la agenda, después.
+hacer. Hoy va en el orden de lo que importa ahora: «Ahora», lo que está en
+marcha e «Importante hoy» arriba; la agenda después, y luego lo atrasado, lo
+próximo y las rutinas. Por debajo de 900px es una sola columna en ese orden; en
+pantalla ancha la agenda pasa a la columna derecha.
 
 **Un color, un significado.** El sistema del reference usaba el mismo acento
 para la marca, para lo urgente, para lo destacado y para los errores — cinco
 trabajos, un solo rojo, y por eso todo competía. Ahora `--accent` es sólo la
-marca y lo interactivo, y `--danger` aparece únicamente cuando algo va tarde.
-En la misma línea, una fecha normal es texto plano: la caja se reserva para lo
-atrasado y lo que vence hoy, así el ojo encuentra eso primero.
+marca y lo interactivo, y `--danger` queda para lo que salió mal: lo que va
+tarde y los errores. En la misma línea, una fecha normal es texto plano: la caja
+se reserva para lo atrasado y lo que vence hoy, así el ojo encuentra eso primero.
 
 **Nada de esto lo decide el navegador.** Todas las fechas se calculan en la zona
 del perfil (`profiles.timezone`, por defecto `America/Vancouver`), nunca en la
@@ -552,10 +600,14 @@ está ahí y no en `CLAUDE.md` para no ensuciar las reglas escritas a mano.
 Lo que `PLAN.md` pedía confirmar antes de escribir código:
 
 - `create-next-app@latest` instaló **Next 16.3.5** (React 19.2.8, App Router,
-  Turbopack). Las versiones las manda el lockfile, no hay pines a mano.
+  Turbopack). El 2026-10-09 se subió a **16.4.0**, junto con `eslint-config-next`,
+  por los avisos de seguridad de Next. `next`, `eslint-config-next`, `react` y
+  `react-dom` van con versión exacta en `package.json`; el resto lo manda el
+  lockfile.
 - `signInWithOAuth` toma `{ provider, options: { redirectTo, scopes, queryParams,
-  skipBrowserRedirect } }`. Para la fase 3, `access_type` y `prompt` van dentro
-  de `queryParams`.
+  skipBrowserRedirect } }`. Al final Calendar no pasa por ahí: `/api/gcal/connect`
+  pide el permiso a Google por su cuenta, con `access_type=offline` y
+  `prompt=consent`.
 - **`provider_token` y `provider_refresh_token` sí existen** en el objeto
   `Session` de `@supabase/auth-js` (ambos `string | null`, opcionales). Era el
   único punto del plan sin verificar contra la documentación; queda confirmado
@@ -563,9 +615,10 @@ Lo que `PLAN.md` pedía confirmar antes de escribir código:
 - `@supabase/ssr` 0.12.x pide `cookies: { getAll, setAll }`. Los viejos
   `get`/`set`/`remove` están deprecados y provocan cierres de sesión aleatorios.
 - `supabase/schema.sql` corre dos veces seguidas sin error sobre Postgres 18, deja
-  RLS activa con su política en las ocho tablas, el trigger crea el perfil al
-  registrarse, y el upsert de sync deja una sola fila mientras las tareas
-  manuales (con `external_id` nulo) conviven sin chocar.
+  RLS activa con su política en las ocho tablas de entonces (hoy son trece, todas
+  con RLS y su política), el trigger crea el perfil al registrarse, y el upsert
+  de sync deja una sola fila mientras las tareas manuales (con `external_id`
+  nulo) conviven sin chocar.
 
 ---
 
@@ -574,8 +627,11 @@ Lo que `PLAN.md` pedía confirmar antes de escribir código:
 - **Fase 3 — Google Calendar.** Hecha, con una conexión propia de sólo lectura
   (2c) en vez de los scopes del login: no depende de cómo entres, y el reloj
   puede renovar el permiso sin que abras la app.
-- **Fase 4 — Que trabaje sola.** El reloj, los dos avisos push y las dos
-  funciones con Claude ("Planear mi día" y partir una tarea en pasos) ya están.
-  Los avisos llegan por push y por Telegram.
+- **Fase 4 — Que trabaje sola.** El reloj, los dos avisos y lo que usa Claude
+  («Planear mi día», partir una tarea en pasos y nombrar las sesiones de un plan
+  de preparación) ya están. Los avisos llegan por push y por Telegram.
 
-El detalle de cada una está en `PLAN.md`.
+El detalle de cada una está en `PLAN.md`. Lo que queda está en `HANDOFF.md`: los
+pasos a mano (los secretos del reloj en GitHub, conectar Vercel a este
+repositorio y volver a correr `supabase/schema.sql`) y probarla contra los
+servicios reales.
